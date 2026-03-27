@@ -1,12 +1,23 @@
 import 'package:cpu/init.dart';
-import 'package:cpu/stats.dart';
+import 'package:cpu/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(MaterialApp(
-    home: Scaffold(
-      appBar: AppBar(title: Text("System Monitor")),
-      body: SafeArea(child: Center(child: InitScreen())),
-    ),
-  ));
+  runApp(const CpuMonitorApp());
+}
+
+class CpuMonitorApp extends StatelessWidget {
+  const CpuMonitorApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'System Monitor',
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: ThemeMode.system, // follows device setting
+      home: const InitScreen(),
+    );
+  }
 }
