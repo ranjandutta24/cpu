@@ -1,52 +1,95 @@
 import 'package:flutter/material.dart';
 
-// ─────────────────────────────────────────────
-// APP COLOR PALETTE — single source of truth
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// APP COLOR PALETTE — single source of truth for every colour in the app
+// ─────────────────────────────────────────────────────────────────────────────
 
 class AppColors {
   AppColors._(); // non-instantiable
 
-  // ── Brand / Accent ──────────────────────────
+  // ── Brand / Accent (theme-agnostic) ──────────────────────────────────────
   static const Color accentTeal       = Color(0xFF3DD9B3);
   static const Color accentTealDark   = Color(0xFF1F6C78);
   static const Color accentTealLight  = Color(0xFF67E8C7);
+  static const Color accentPurple     = Color(0xFF7B61FF);
+  static const Color accentPurpleDark = Color(0xFF4A2FBF);
 
-  // ── Dark theme surfaces ──────────────────────
-  static const Color darkBg           = Color(0xFF0D1117);
-  static const Color darkBgGradMid    = Color(0xFF0F2027);
-  static const Color darkSurface      = Color(0xFF161B22);
-  static const Color darkBorder       = Color(0xFF30363D);
-  static const Color darkInputFill    = Color(0xFF0D1117);
+  // ── Semantic (shared) ─────────────────────────────────────────────────────
+  static const Color cpuChart   = Color(0xFF58A6FF);
+  static const Color ramChart   = Color(0xFF3DD9B3);
+  static const Color diskChart  = Color(0xFFF78166);
+  static const Color success    = Color(0xFF3DD9B3);
+  static const Color warning    = Color(0xFFFFB347); // amber
+  static const Color error      = Color(0xFFFF6B6B); // red
 
-  // ── Dark theme text ──────────────────────────
-  static const Color darkTextPrimary  = Color(0xFFE6EDF3);
-  static const Color darkTextSecond   = Color(0xFF8B949E);
-  static const Color darkTextHint     = Color(0xFF484F58);
+  // ── Dark theme ────────────────────────────────────────────────────────────
+  static const Color darkBg          = Color(0xFF0D1117);
+  static const Color darkBgGradMid   = Color(0xFF0F2027);
+  static const Color darkBgGradMid2  = Color(0xFF0F1F2E); // phone monitor grad
+  static const Color darkSurface     = Color(0xFF161B22);
+  static const Color darkBorder      = Color(0xFF30363D);
+  static const Color darkInputFill   = Color(0xFF0D1117);
+  static const Color darkTextPrimary = Color(0xFFE6EDF3);
+  static const Color darkTextSecond  = Color(0xFF8B949E);
+  static const Color darkTextHint    = Color(0xFF484F58);
 
-  // ── Light theme surfaces ─────────────────────
+  // ── Light theme ───────────────────────────────────────────────────────────
   static const Color lightBg          = Color(0xFFF0F4F8);
+  static const Color lightBgGradMid   = Color(0xFFDDE8F0);
+  static const Color lightBgGradMid2  = Color(0xFFE8F0F7);
   static const Color lightSurface     = Color(0xFFFFFFFF);
   static const Color lightBorder      = Color(0xFFD0D7DE);
   static const Color lightInputFill   = Color(0xFFF6F8FA);
-
-  // ── Light theme text ─────────────────────────
   static const Color lightTextPrimary = Color(0xFF1C2128);
   static const Color lightTextSecond  = Color(0xFF57606A);
   static const Color lightTextHint    = Color(0xFFB0BAC3);
 
-  // ── Semantic ─────────────────────────────────
-  static const Color cpuChart         = Color(0xFF58A6FF);
-  static const Color ramChart         = Color(0xFF3DD9B3);
-  static const Color diskChart        = Color(0xFFF78166);
-  static const Color success          = Color(0xFF3DD9B3);
-  static const Color warning          = Color(0xFFD29922);
-  static const Color error            = Color(0xFFF78166);
+  // ── Context-aware helpers ─────────────────────────────────────────────────
+  /// Returns the correct set of surface colours for the current theme.
+  static AppSurface of(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return dark ? const AppSurface._dark() : const AppSurface._light();
+  }
 }
 
-// ─────────────────────────────────────────────
+/// Carries all theme-adaptive colours for a given context.
+class AppSurface {
+  final Color bg;
+  final Color bgGradMid;
+  final Color bgGradMid2;
+  final Color surface;
+  final Color border;
+  final Color inputFill;
+  final Color textPrimary;
+  final Color textSecond;
+  final Color textHint;
+
+  const AppSurface._dark()
+      : bg          = AppColors.darkBg,
+        bgGradMid   = AppColors.darkBgGradMid,
+        bgGradMid2  = AppColors.darkBgGradMid2,
+        surface     = AppColors.darkSurface,
+        border      = AppColors.darkBorder,
+        inputFill   = AppColors.darkInputFill,
+        textPrimary = AppColors.darkTextPrimary,
+        textSecond  = AppColors.darkTextSecond,
+        textHint    = AppColors.darkTextHint;
+
+  const AppSurface._light()
+      : bg          = AppColors.lightBg,
+        bgGradMid   = AppColors.lightBgGradMid,
+        bgGradMid2  = AppColors.lightBgGradMid2,
+        surface     = AppColors.lightSurface,
+        border      = AppColors.lightBorder,
+        inputFill   = AppColors.lightInputFill,
+        textPrimary = AppColors.lightTextPrimary,
+        textSecond  = AppColors.lightTextSecond,
+        textHint    = AppColors.lightTextHint;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DARK THEME
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 ThemeData get darkTheme => ThemeData(
       brightness: Brightness.dark,
@@ -108,9 +151,9 @@ ThemeData get darkTheme => ThemeData(
       dividerColor: AppColors.darkBorder,
     );
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // LIGHT THEME
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 
 ThemeData get lightTheme => ThemeData(
       brightness: Brightness.light,

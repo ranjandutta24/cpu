@@ -1,13 +1,8 @@
 import 'package:cpu/screens/dashboard.dart';
 import 'package:cpu/screens/phone_monitor.dart';
+import 'package:cpu/theme/app_theme.dart';
 import 'package:cpu/utils/function.dart';
 import 'package:flutter/material.dart';
-
-// ── Colour tokens (kept local so no theme import needed) ─────────────────────
-const _bg = Color(0xFF0D1117);
-const _card = Color(0xFF161B22);
-const _teal = Color(0xFF3DD9B3);
-const _purple = Color(0xFF7B61FF);
 
 class InitScreen extends StatefulWidget {
   const InitScreen({super.key});
@@ -20,8 +15,7 @@ class _InitScreenState extends State<InitScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _ip = TextEditingController();
 
-  // Which mode card is expanded: 'cpu' | 'mobile' | null
-  String? _selected;
+  String? _selected; // 'cpu' | 'mobile' | null
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
@@ -70,36 +64,37 @@ class _InitScreenState extends State<InitScreen>
     );
   }
 
-  // ── BUILD ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: c.bg,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [_bg, Color(0xFF0F2027), _bg],
+            colors: [c.bg, c.bgGradMid, c.bg],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // ── Logo ────────────────────────────────────────────
-                  _Logo(),
+                  // ── Logo ─────────────────────────────────────────────
+                  const _Logo(),
 
                   const SizedBox(height: 28),
 
-                  // ── Headline ─────────────────────────────────────────
-                  const Text(
+                  // ── Headline ──────────────────────────────────────────
+                  Text(
                     'System Monitor',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: c.textPrimary,
                       fontSize: 26,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.4,
@@ -108,45 +103,40 @@ class _InitScreenState extends State<InitScreen>
                   const SizedBox(height: 6),
                   Text(
                     'Choose a monitoring mode to get started',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.42),
-                      fontSize: 13.5,
-                    ),
+                    style: TextStyle(color: c.textSecond, fontSize: 13.5),
                     textAlign: TextAlign.center,
                   ),
 
                   const SizedBox(height: 36),
 
-                  // ── Mode Selector Cards ──────────────────────────────
+                  // ── Mode Selector Cards ───────────────────────────────
                   Row(
                     children: [
                       Expanded(
                         child: _ModeCard(
-                          id: 'cpu',
                           selected: _selected == 'cpu',
                           icon: Icons.computer_rounded,
                           label: 'CPU Monitor',
                           subtitle: 'Remote desktop / server',
-                          color: _teal,
+                          color: AppColors.accentTeal,
                           onTap: () => _selectMode('cpu'),
                         ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: _ModeCard(
-                          id: 'mobile',
                           selected: _selected == 'mobile',
                           icon: Icons.smartphone_rounded,
                           label: 'Mobile Monitor',
                           subtitle: 'This device stats & apps',
-                          color: _purple,
+                          color: AppColors.accentPurple,
                           onTap: () => _selectMode('mobile'),
                         ),
                       ),
                     ],
                   ),
 
-                  // ── Animated expand area ─────────────────────────────
+                  // ── Animated expand area ──────────────────────────────
                   SizeTransition(
                     sizeFactor: _fadeAnim,
                     axisAlignment: -1,
@@ -176,11 +166,12 @@ class _InitScreenState extends State<InitScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sub-widgets
+// Logo
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Animated logo circle
 class _Logo extends StatelessWidget {
+  const _Logo();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -189,13 +180,13 @@ class _Logo extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: const LinearGradient(
-          colors: [Color(0xFF1F6C78), _teal],
+          colors: [AppColors.accentTealDark, AppColors.accentTeal],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: _teal.withOpacity(0.35),
+            color: AppColors.accentTeal.withOpacity(0.35),
             blurRadius: 28,
             spreadRadius: 4,
           ),
@@ -210,9 +201,11 @@ class _Logo extends StatelessWidget {
   }
 }
 
-// ── Mode selector card ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Mode Selector Card
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _ModeCard extends StatefulWidget {
-  final String id;
   final bool selected;
   final IconData icon;
   final String label;
@@ -221,7 +214,6 @@ class _ModeCard extends StatefulWidget {
   final VoidCallback onTap;
 
   const _ModeCard({
-    required this.id,
     required this.selected,
     required this.icon,
     required this.label,
@@ -234,16 +226,17 @@ class _ModeCard extends StatefulWidget {
   State<_ModeCard> createState() => _ModeCardState();
 }
 
-class _ModeCardState extends State<_ModeCard>
-    with SingleTickerProviderStateMixin {
+class _ModeCardState extends State<_ModeCard> {
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final c      = AppColors.of(context);
     final active = widget.selected || _hovered;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onExit:  (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -253,28 +246,27 @@ class _ModeCardState extends State<_ModeCard>
           decoration: BoxDecoration(
             color: widget.selected
                 ? widget.color.withOpacity(0.08)
-                : const Color(0xFF161B22),
+                : c.surface,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: active
                   ? widget.color.withOpacity(0.6)
-                  : widget.color.withOpacity(0.15),
+                  : widget.color.withOpacity(0.2),
               width: widget.selected ? 1.6 : 1.2,
             ),
             boxShadow: [
               BoxShadow(
                 color: widget.selected
                     ? widget.color.withOpacity(0.18)
-                    : Colors.black.withOpacity(0.3),
-                blurRadius: widget.selected ? 20 : 12,
-                offset: const Offset(0, 6),
+                    : Colors.black.withOpacity(0.12),
+                blurRadius: widget.selected ? 20 : 10,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icon badge
               Container(
                 width: 48,
                 height: 48,
@@ -287,8 +279,8 @@ class _ModeCardState extends State<_ModeCard>
               const SizedBox(height: 14),
               Text(
                 widget.label,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: c.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                 ),
@@ -296,13 +288,9 @@ class _ModeCardState extends State<_ModeCard>
               const SizedBox(height: 4),
               Text(
                 widget.subtitle,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.38),
-                  fontSize: 11.5,
-                ),
+                style: TextStyle(color: c.textSecond, fontSize: 11.5),
               ),
               const SizedBox(height: 14),
-              // Selected indicator
               Row(
                 children: [
                   AnimatedContainer(
@@ -335,7 +323,10 @@ class _ModeCardState extends State<_ModeCard>
   }
 }
 
-// ── CPU connect panel ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// CPU Connect Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _CPUConnectPanel extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onConnect;
@@ -345,17 +336,19 @@ class _CPUConnectPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: _card,
+        color: c.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _teal.withOpacity(0.18), width: 1.2),
+        border: Border.all(
+            color: AppColors.accentTeal.withOpacity(0.22), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.45),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -366,12 +359,12 @@ class _CPUConnectPanel extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.wifi_tethering_rounded,
-                  color: _teal, size: 18),
+                  color: AppColors.accentTeal, size: 18),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Connect to Host',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: c.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -379,52 +372,50 @@ class _CPUConnectPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Label
           Text(
             'IP ADDRESS',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.4),
+              color: c.textHint,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.1,
             ),
           ),
           const SizedBox(height: 8),
-          // Input
+          // Input field
           TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: c.textPrimary,
               fontSize: 15.5,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.4,
             ),
-            cursorColor: _teal,
+            cursorColor: AppColors.accentTeal,
             decoration: InputDecoration(
               hintText: '192.168.x.x',
-              hintStyle:
-                  TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 14),
+              hintStyle: TextStyle(color: c.textHint, fontSize: 14),
               prefixIcon: const Icon(Icons.wifi_outlined,
-                  color: _teal, size: 20),
+                  color: AppColors.accentTeal, size: 20),
               isDense: true,
               filled: true,
-              fillColor: _bg,
-              contentPadding:
-                  const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+              fillColor: c.inputFill,
+              contentPadding: const EdgeInsets.symmetric(
+                  vertical: 16, horizontal: 14),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    BorderSide(color: Colors.white.withOpacity(0.08)),
+                borderSide: BorderSide(color: c.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    BorderSide(color: Colors.white.withOpacity(0.12)),
+                borderSide: BorderSide(color: c.border),
               ),
               focusedBorder: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(12)),
-                borderSide: BorderSide(color: _teal, width: 1.5),
+                borderRadius:
+                    BorderRadius.all(Radius.circular(12)),
+                borderSide: BorderSide(
+                    color: AppColors.accentTeal, width: 1.5),
               ),
             ),
             onSubmitted: (_) => onConnect(),
@@ -438,11 +429,14 @@ class _CPUConnectPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF1F6C78), _teal],
+                  colors: [
+                    AppColors.accentTealDark,
+                    AppColors.accentTeal
+                  ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _teal.withOpacity(0.3),
+                    color: AppColors.accentTeal.withOpacity(0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -474,70 +468,76 @@ class _CPUConnectPanel extends StatelessWidget {
   }
 }
 
-// ── Mobile monitor panel ──────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Mobile Monitor Panel
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _MobilePanel extends StatelessWidget {
   final VoidCallback onOpen;
   const _MobilePanel({required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: _card,
+        color: c.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _purple.withOpacity(0.2), width: 1.2),
+        border: Border.all(
+            color: AppColors.accentPurple.withOpacity(0.22), width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.45),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: _purple.withOpacity(0.12),
+                  color: AppColors.accentPurple.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                    const Icon(Icons.smartphone_rounded, color: _purple, size: 18),
+                child: const Icon(Icons.smartphone_rounded,
+                    color: AppColors.accentPurple, size: 18),
               ),
               const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Mobile Monitor',
                     style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700),
+                      color: c.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   Text(
                     'Monitor this device in real-time',
-                    style: TextStyle(
-                        color: Colors.white.withOpacity(0.38), fontSize: 11.5),
+                    style:
+                        TextStyle(color: c.textSecond, fontSize: 11.5),
                   ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 18),
-          // Feature tags
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: const [
-              _FeatureChip(icon: Icons.battery_full_rounded, label: 'Battery'),
-              _FeatureChip(icon: Icons.memory_rounded, label: 'RAM'),
+              _FeatureChip(
+                  icon: Icons.battery_full_rounded, label: 'Battery'),
+              _FeatureChip(
+                  icon: Icons.memory_rounded, label: 'RAM'),
               _FeatureChip(icon: Icons.apps_rounded, label: 'Apps'),
               _FeatureChip(
                   icon: Icons.storage_rounded, label: 'Storage'),
@@ -546,7 +546,6 @@ class _MobilePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-          // Open button
           SizedBox(
             width: double.infinity,
             height: 50,
@@ -554,11 +553,14 @@ class _MobilePanel extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF4A2FBF), _purple],
+                  colors: [
+                    AppColors.accentPurpleDark,
+                    AppColors.accentPurple
+                  ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: _purple.withOpacity(0.3),
+                    color: AppColors.accentPurple.withOpacity(0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -573,7 +575,8 @@ class _MobilePanel extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                icon:
+                    const Icon(Icons.open_in_new_rounded, size: 20),
                 label: const Text(
                   'Open Monitor',
                   style: TextStyle(
@@ -600,19 +603,22 @@ class _FeatureChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: _purple.withOpacity(0.08),
+        color: AppColors.accentPurple.withOpacity(0.08),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _purple.withOpacity(0.2)),
+        border:
+            Border.all(color: AppColors.accentPurple.withOpacity(0.22)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: _purple, size: 13),
+          Icon(icon, color: AppColors.accentPurple, size: 13),
           const SizedBox(width: 5),
           Text(
             label,
             style: const TextStyle(
-                color: _purple, fontSize: 11.5, fontWeight: FontWeight.w600),
+                color: AppColors.accentPurple,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600),
           ),
         ],
       ),

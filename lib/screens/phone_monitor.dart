@@ -2,19 +2,12 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:battery_plus/battery_plus.dart';
+import 'package:cpu/theme/app_theme.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
-
-// ── Colour tokens ─────────────────────────────────────────────────────────────
-const _bg     = Color(0xFF0D1117);
-const _card   = Color(0xFF161B22);
-const _teal   = Color(0xFF3DD9B3);
-const _purple = Color(0xFF7B61FF);
-const _red    = Color(0xFFFF6B6B);
-const _amber  = Color(0xFFFFB347);
 
 class PhoneMonitorScreen extends StatefulWidget {
   const PhoneMonitorScreen({super.key});
@@ -24,29 +17,29 @@ class PhoneMonitorScreen extends StatefulWidget {
 }
 
 class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
-  // ── Native channel ───────────────────────────────────────────────────────────
+  // ── Native channel ────────────────────────────────────────────────────────
   static const _channel = MethodChannel('com.example.cpu/native_stats');
 
-  // ── State ────────────────────────────────────────────────────────────────────
-  int _batteryLevel     = 0;
+  // ── State ─────────────────────────────────────────────────────────────────
+  int _batteryLevel          = 0;
   BatteryState _batteryState = BatteryState.unknown;
-  double _cpuTemp       = -1;
-  int _currentMa        = 0;
-  int _totalRamMb       = 0;
-  int _usedRamMb        = 0;
-  int _freeRamMb        = 0;
-  String _deviceModel   = '---';
-  String _androidVer    = '---';
-  List<AppInfo> _apps   = [];
-  bool _loadingApps     = true;
-  bool _loadingStats    = true;
-  String _appSearch     = '';
+  double _cpuTemp            = -1;
+  int _currentMa             = 0;
+  int _totalRamMb            = 0;
+  int _usedRamMb             = 0;
+  int _freeRamMb             = 0;
+  String _deviceModel        = '---';
+  String _androidVer         = '---';
+  List<AppInfo> _apps        = [];
+  bool _loadingApps          = true;
+  bool _loadingStats         = true;
+  String _appSearch          = '';
 
-  final Battery _battery      = Battery();
+  final Battery _battery = Battery();
   Timer? _refreshTimer;
   StreamSubscription<BatteryState>? _batterySub;
 
-  // ── Life-cycle ───────────────────────────────────────────────────────────────
+  // ── Life-cycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -62,8 +55,8 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     _batterySub = _battery.onBatteryStateChanged.listen((s) {
       if (mounted) setState(() => _batteryState = s);
     });
-    // Refresh live stats every 3 seconds
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _refreshTimer =
+        Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted) _loadNativeStats();
     });
   }
@@ -75,16 +68,17 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     super.dispose();
   }
 
-  // ── Data loaders ─────────────────────────────────────────────────────────────
+  // ── Data loaders ──────────────────────────────────────────────────────────
   Future<void> _loadDeviceInfo() async {
     try {
-      final info = await DeviceInfoPlugin().androidInfo;
+      final info  = await DeviceInfoPlugin().androidInfo;
       final level = await _battery.batteryLevel;
       final state = await _battery.batteryState;
       if (!mounted) return;
       setState(() {
         _deviceModel  = '${info.brand} ${info.model}';
-        _androidVer   = 'Android ${info.version.release}  (SDK ${info.version.sdkInt})';
+        _androidVer   =
+            'Android ${info.version.release}  (SDK ${info.version.sdkInt})';
         _batteryLevel = level;
         _batteryState = state;
       });
@@ -93,8 +87,8 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
 
   Future<void> _loadNativeStats() async {
     try {
-      final Map raw = await _channel.invokeMethod('getNativeStats');
-      final level   = await _battery.batteryLevel;
+      final Map raw   = await _channel.invokeMethod('getNativeStats');
+      final level     = await _battery.batteryLevel;
       if (!mounted) return;
       setState(() {
         _cpuTemp    = (raw['cpuTemp']    as num?)?.toDouble() ?? -1;
@@ -112,13 +106,13 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
 
   Future<void> _loadApps() async {
     try {
-      // includeSystemApps=false, withIcon=true
       final apps = await InstalledApps.getInstalledApps(false, true);
       apps.sort((a, b) =>
-          (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase()));
+          (a.name ?? '').toLowerCase().compareTo(
+              (b.name ?? '').toLowerCase()));
       if (!mounted) return;
       setState(() {
-        _apps = apps;
+        _apps        = apps;
         _loadingApps = false;
       });
     } catch (_) {
@@ -126,16 +120,17 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     }
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Computed helpers ──────────────────────────────────────────────────────
   Color get _batteryColor {
-    if (_batteryState == BatteryState.charging) return _teal;
-    if (_batteryLevel <= 20) return _red;
-    if (_batteryLevel <= 50) return _amber;
-    return _teal;
+    if (_batteryState == BatteryState.charging) return AppColors.accentTeal;
+    if (_batteryLevel <= 20) return AppColors.error;
+    if (_batteryLevel <= 50) return AppColors.warning;
+    return AppColors.accentTeal;
   }
 
   IconData get _batteryIcon {
-    if (_batteryState == BatteryState.charging) return Icons.battery_charging_full_rounded;
+    if (_batteryState == BatteryState.charging)
+      return Icons.battery_charging_full_rounded;
     if (_batteryLevel <= 20) return Icons.battery_1_bar_rounded;
     if (_batteryLevel <= 50) return Icons.battery_4_bar_rounded;
     return Icons.battery_full_rounded;
@@ -151,10 +146,10 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
   }
 
   Color get _tempColor {
-    if (_cpuTemp < 0)  return Colors.white38;
-    if (_cpuTemp < 45) return _teal;
-    if (_cpuTemp < 65) return _amber;
-    return _red;
+    if (_cpuTemp < 0)  return AppColors.darkTextSecond;
+    if (_cpuTemp < 45) return AppColors.accentTeal;
+    if (_cpuTemp < 65) return AppColors.warning;
+    return AppColors.error;
   }
 
   double get _ramUsedRatio =>
@@ -163,53 +158,52 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
   List<AppInfo> get _filteredApps {
     if (_appSearch.isEmpty) return _apps;
     return _apps
-        .where((a) =>
-            (a.name ?? '').toLowerCase().contains(_appSearch.toLowerCase()))
+        .where((a) => (a.name ?? '')
+            .toLowerCase()
+            .contains(_appSearch.toLowerCase()))
         .toList();
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final c = AppColors.of(context);
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: c.bg,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [_bg, Color(0xFF0F1F2E), _bg],
+            colors: [c.bg, c.bgGradMid2, c.bg],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              _buildTopBar(),
+              _buildTopBar(c),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  padding:
+                      const EdgeInsets.fromLTRB(16, 12, 16, 20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Device info strip
-                      _buildDeviceStrip(),
+                      _buildDeviceStrip(c),
                       const SizedBox(height: 16),
-                      // Battery + Temp row
                       Row(
                         children: [
-                          Expanded(child: _buildBatteryCard()),
+                          Expanded(child: _buildBatteryCard(c)),
                           const SizedBox(width: 12),
-                          Expanded(child: _buildCurrentCard()),
+                          Expanded(child: _buildCurrentCard(c)),
                           const SizedBox(width: 12),
-                          Expanded(child: _buildTempCard()),
+                          Expanded(child: _buildTempCard(c)),
                         ],
                       ),
                       const SizedBox(height: 14),
-                      // RAM card
-                      _buildRamCard(),
+                      _buildRamCard(c),
                       const SizedBox(height: 20),
-                      // Apps
-                      _buildAppsSection(),
+                      _buildAppsSection(c),
                     ],
                   ),
                 ),
@@ -221,8 +215,8 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
-  // ── Top Bar ──────────────────────────────────────────────────────────────────
-  Widget _buildTopBar() {
+  // ── Top Bar ───────────────────────────────────────────────────────────────
+  Widget _buildTopBar(AppSurface c) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Row(
@@ -233,89 +227,100 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: _card,
+                color: c.surface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _purple.withOpacity(0.25)),
+                border: Border.all(
+                    color: AppColors.accentPurple.withOpacity(0.25)),
               ),
               child: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: _purple, size: 18),
+                  color: AppColors.accentPurple, size: 18),
             ),
           ),
           const SizedBox(width: 14),
-          const Text(
+          Text(
             'Phone Monitor',
             style: TextStyle(
-                color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700),
+              color: c.textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const Spacer(),
-          // Live dot
-          _LiveDot(color: _purple),
+          _LiveDot(color: AppColors.accentPurple),
         ],
       ),
     );
   }
 
-  // ── Device strip ─────────────────────────────────────────────────────────────
-  Widget _buildDeviceStrip() {
+  // ── Device strip ──────────────────────────────────────────────────────────
+  Widget _buildDeviceStrip(AppSurface c) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: _card,
+        color: c.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _purple.withOpacity(0.15)),
+        border: Border.all(
+            color: AppColors.accentPurple.withOpacity(0.15)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.phone_android_rounded, color: _purple, size: 20),
+          const Icon(Icons.phone_android_rounded,
+              color: AppColors.accentPurple, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(_deviceModel,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: c.textPrimary,
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(_androidVer,
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.4), fontSize: 11.5)),
+                        color: c.textSecond, fontSize: 11.5)),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: _teal.withOpacity(0.1),
+              color: AppColors.accentTeal.withOpacity(0.1),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _teal.withOpacity(0.3)),
+              border: Border.all(
+                  color: AppColors.accentTeal.withOpacity(0.3)),
             ),
             child: const Text('This Device',
                 style: TextStyle(
-                    color: _teal, fontSize: 11, fontWeight: FontWeight.w600)),
+                    color: AppColors.accentTeal,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
   }
 
-  // ── Battery card ─────────────────────────────────────────────────────────────
-  Widget _buildBatteryCard() {
+  // ── Battery card ──────────────────────────────────────────────────────────
+  Widget _buildBatteryCard(AppSurface c) {
     return _MetricCard(
+      surface: c,
       icon: _batteryIcon,
       color: _batteryColor,
       topLabel: 'Battery',
       value: '$_batteryLevel%',
       bottomLabel: _stateLabel,
-      child: Padding(
+      extra: Padding(
         padding: const EdgeInsets.only(top: 8),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: _batteryLevel / 100,
             minHeight: 5,
-            backgroundColor: Colors.white.withOpacity(0.07),
+            backgroundColor: Colors.black12,
             valueColor: AlwaysStoppedAnimation(_batteryColor),
           ),
         ),
@@ -323,33 +328,33 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
-  // ── Current card ─────────────────────────────────────────────────────────────
-  Widget _buildCurrentCard() {
+  // ── Current card ──────────────────────────────────────────────────────────
+  Widget _buildCurrentCard(AppSurface c) {
     final isCharging = _currentMa > 0;
-    final display    = _currentMa == 0
-        ? '-- mA'
-        : '${_currentMa.abs()} mA';
     return _MetricCard(
+      surface: c,
       icon: isCharging
           ? Icons.bolt_rounded
           : Icons.battery_alert_rounded,
-      color: isCharging ? _teal : _amber,
+      color: isCharging ? AppColors.accentTeal : AppColors.warning,
       topLabel: 'Current',
-      value: display,
+      value: _currentMa == 0
+          ? '-- mA'
+          : '${_currentMa.abs()} mA',
       bottomLabel: isCharging ? 'Charging' : 'Draining',
     );
   }
 
-  // ── Temp card ────────────────────────────────────────────────────────────────
-  Widget _buildTempCard() {
-    final display = _cpuTemp < 0
-        ? '--°C'
-        : '${_cpuTemp.toStringAsFixed(1)}°C';
+  // ── Temp card ─────────────────────────────────────────────────────────────
+  Widget _buildTempCard(AppSurface c) {
     return _MetricCard(
+      surface: c,
       icon: Icons.thermostat_rounded,
       color: _tempColor,
       topLabel: 'CPU Temp',
-      value: display,
+      value: _cpuTemp < 0
+          ? '--°C'
+          : '${_cpuTemp.toStringAsFixed(1)}°C',
       bottomLabel: _cpuTemp < 0
           ? 'N/A'
           : _cpuTemp < 45
@@ -360,8 +365,8 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
-  // ── RAM card ─────────────────────────────────────────────────────────────────
-  Widget _buildRamCard() {
+  // ── RAM card ──────────────────────────────────────────────────────────────
+  Widget _buildRamCard(AppSurface c) {
     final usedGb  = (_usedRamMb / 1024).toStringAsFixed(1);
     final totalGb = (_totalRamMb / 1024).toStringAsFixed(1);
     final freeGb  = (_freeRamMb / 1024).toStringAsFixed(1);
@@ -369,14 +374,15 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _card,
+        color: c.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _purple.withOpacity(0.18)),
+        border: Border.all(
+            color: AppColors.accentPurple.withOpacity(0.18)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 5))
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 14,
+              offset: const Offset(0, 4))
         ],
       ),
       child: Column(
@@ -384,11 +390,12 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.memory_rounded, color: _purple, size: 18),
+              const Icon(Icons.memory_rounded,
+                  color: AppColors.accentPurple, size: 18),
               const SizedBox(width: 8),
-              const Text('RAM',
+              Text('RAM',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: c.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600)),
               const Spacer(),
@@ -396,12 +403,13 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
                 const SizedBox(
                     width: 14,
                     height: 14,
-                    child:
-                        CircularProgressIndicator(color: _purple, strokeWidth: 1.5))
+                    child: CircularProgressIndicator(
+                        color: AppColors.accentPurple,
+                        strokeWidth: 1.5))
               else
                 Text('$usedGb / $totalGb GB',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.5), fontSize: 12)),
+                        color: c.textSecond, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 14),
@@ -410,20 +418,30 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
             child: LinearProgressIndicator(
               value: _ramUsedRatio,
               minHeight: 8,
-              backgroundColor: Colors.white.withOpacity(0.07),
-              valueColor: const AlwaysStoppedAnimation(_purple),
+              backgroundColor: Colors.black12,
+              valueColor: const AlwaysStoppedAnimation(
+                  AppColors.accentPurple),
             ),
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _RamChip(label: 'Used', value: '$usedGb GB', color: _purple),
-              _RamChip(label: 'Free', value: '$freeGb GB', color: _teal),
+              _RamChip(
+                  label: 'Used',
+                  value: '$usedGb GB',
+                  color: AppColors.accentPurple,
+                  textColor: c.textSecond),
+              _RamChip(
+                  label: 'Free',
+                  value: '$freeGb GB',
+                  color: AppColors.accentTeal,
+                  textColor: c.textSecond),
               _RamChip(
                   label: 'Total',
                   value: '$totalGb GB',
-                  color: Colors.white38),
+                  color: c.textSecond,
+                  textColor: c.textSecond),
             ],
           ),
         ],
@@ -431,35 +449,35 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
-  // ── Apps section ─────────────────────────────────────────────────────────────
-  Widget _buildAppsSection() {
+  // ── Apps section ──────────────────────────────────────────────────────────
+  Widget _buildAppsSection(AppSurface c) {
     final filtered = _filteredApps;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
         Row(
           children: [
-            const Icon(Icons.apps_rounded, color: _teal, size: 18),
+            const Icon(Icons.apps_rounded,
+                color: AppColors.accentTeal, size: 18),
             const SizedBox(width: 8),
-            const Text('Installed Apps',
+            Text('Installed Apps',
                 style: TextStyle(
-                    color: Colors.white,
+                    color: c.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600)),
             const Spacer(),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: _teal.withOpacity(0.1),
+                color: AppColors.accentTeal.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text(
-                '${_apps.length} apps',
-                style: const TextStyle(
-                    color: _teal, fontSize: 11, fontWeight: FontWeight.w600),
-              ),
+              child: Text('${_apps.length} apps',
+                  style: const TextStyle(
+                      color: AppColors.accentTeal,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -467,121 +485,127 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
         // Search bar
         TextField(
           onChanged: (v) => setState(() => _appSearch = v),
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          cursorColor: _teal,
+          style: TextStyle(color: c.textPrimary, fontSize: 14),
+          cursorColor: AppColors.accentTeal,
           decoration: InputDecoration(
             hintText: 'Search apps...',
             hintStyle:
-                TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 14),
-            prefixIcon: const Icon(Icons.search_rounded, color: _teal, size: 20),
+                TextStyle(color: c.textHint, fontSize: 14),
+            prefixIcon: const Icon(Icons.search_rounded,
+                color: AppColors.accentTeal, size: 20),
             isDense: true,
             filled: true,
-            fillColor: _card,
-            contentPadding:
-                const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+            fillColor: c.surface,
+            contentPadding: const EdgeInsets.symmetric(
+                vertical: 14, horizontal: 14),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+              borderSide: BorderSide(color: c.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+              borderSide: BorderSide(color: c.border),
             ),
             focusedBorder: const OutlineInputBorder(
               borderRadius: BorderRadius.all(Radius.circular(12)),
-              borderSide: BorderSide(color: _teal, width: 1.4),
+              borderSide: BorderSide(
+                  color: AppColors.accentTeal, width: 1.4),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        // App list
         _loadingApps
-            ? _buildAppsLoading()
+            ? _buildAppsLoading(c)
             : filtered.isEmpty
-                ? _buildAppsEmpty()
-                : _buildAppsList(filtered),
+                ? _buildAppsEmpty(c)
+                : _buildAppsList(filtered, c),
       ],
     );
   }
 
-  Widget _buildAppsLoading() {
+  Widget _buildAppsLoading(AppSurface c) {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: _card, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _teal.withOpacity(0.1)),
+        color: c.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: AppColors.accentTeal.withOpacity(0.1)),
       ),
       child: const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: _teal, strokeWidth: 2),
+            CircularProgressIndicator(
+                color: AppColors.accentTeal, strokeWidth: 2),
             SizedBox(height: 14),
             Text('Loading apps…',
-                style: TextStyle(color: Colors.white54, fontSize: 13)),
+                style:
+                    TextStyle(color: Colors.white54, fontSize: 13)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAppsEmpty() {
+  Widget _buildAppsEmpty(AppSurface c) {
     return Container(
       height: 120,
       decoration: BoxDecoration(
-        color: _card, borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _teal.withOpacity(0.1)),
+        color: c.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: AppColors.accentTeal.withOpacity(0.1)),
       ),
       child: Center(
         child: Text('No apps found',
-            style:
-                TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 14)),
+            style: TextStyle(color: c.textSecond, fontSize: 14)),
       ),
     );
   }
 
-  Widget _buildAppsList(List<AppInfo> apps) {
+  Widget _buildAppsList(List<AppInfo> apps, AppSurface c) {
     return Container(
       decoration: BoxDecoration(
-        color: _card,
+        color: c.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _teal.withOpacity(0.1)),
+        border: Border.all(
+            color: AppColors.accentTeal.withOpacity(0.1)),
       ),
       clipBehavior: Clip.antiAlias,
       child: ListView.separated(
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
         itemCount: apps.length,
-        separatorBuilder: (_, __) => Divider(
-          height: 1,
-          color: Colors.white.withOpacity(0.05),
-          indent: 60,
-        ),
-        itemBuilder: (_, i) => _AppTile(app: apps[i]),
+        separatorBuilder: (_, __) =>
+            Divider(height: 1, color: c.border.withOpacity(0.4), indent: 60),
+        itemBuilder: (_, i) => _AppTile(app: apps[i], surface: c),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Reusable widgets
+// Reusable sub-widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MetricCard extends StatelessWidget {
+  final AppSurface surface;
   final IconData icon;
   final Color color;
   final String topLabel;
   final String value;
   final String bottomLabel;
-  final Widget? child;
+  final Widget? extra;
 
   const _MetricCard({
+    required this.surface,
     required this.icon,
     required this.color,
     required this.topLabel,
     required this.value,
     required this.bottomLabel,
-    this.child,
+    this.extra,
   });
 
   @override
@@ -589,13 +613,13 @@ class _MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _card,
+        color: surface.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withOpacity(0.2)),
         boxShadow: [
           BoxShadow(
-              color: color.withOpacity(0.08),
-              blurRadius: 14,
+              color: color.withOpacity(0.07),
+              blurRadius: 12,
               offset: const Offset(0, 4))
         ],
       ),
@@ -606,19 +630,21 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(topLabel,
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: surface.textSecond,
                   fontSize: 10.5,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.4)),
           const SizedBox(height: 4),
           Text(value,
               style: TextStyle(
-                  color: color, fontSize: 17, fontWeight: FontWeight.w800)),
+                  color: color,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800)),
           const SizedBox(height: 2),
           Text(bottomLabel,
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.35), fontSize: 10.5)),
-          if (child != null) child!,
+                  color: surface.textSecond, fontSize: 10.5)),
+          if (extra != null) extra!,
         ],
       ),
     );
@@ -629,8 +655,14 @@ class _RamChip extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _RamChip(
-      {required this.label, required this.value, required this.color});
+  final Color textColor;
+
+  const _RamChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.textColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -638,11 +670,12 @@ class _RamChip extends StatelessWidget {
       children: [
         Text(value,
             style: TextStyle(
-                color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
         Text(label,
-            style: TextStyle(
-                color: Colors.white.withOpacity(0.35), fontSize: 10.5)),
+            style: TextStyle(color: textColor, fontSize: 10.5)),
       ],
     );
   }
@@ -659,13 +692,15 @@ class _LiveDotState extends State<_LiveDot>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
+
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(seconds: 1))
       ..repeat(reverse: true);
-    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+    _anim =
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
   }
 
   @override
@@ -677,11 +712,13 @@ class _LiveDotState extends State<_LiveDot>
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: widget.color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: widget.color.withOpacity(0.3)),
+        border:
+            Border.all(color: widget.color.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -708,41 +745,42 @@ class _LiveDotState extends State<_LiveDot>
 
 class _AppTile extends StatelessWidget {
   final AppInfo app;
-  const _AppTile({required this.app});
+  final AppSurface surface;
+  const _AppTile({required this.app, required this.surface});
 
   @override
   Widget build(BuildContext context) {
     final Uint8List? iconBytes = app.icon;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
-          // App icon
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.04),
+              color: surface.border.withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: iconBytes != null && iconBytes.isNotEmpty
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.memory(iconBytes, fit: BoxFit.cover),
+                    child:
+                        Image.memory(iconBytes, fit: BoxFit.cover),
                   )
                 : const Icon(Icons.android_rounded,
                     color: Colors.white24, size: 26),
           ),
           const SizedBox(width: 12),
-          // Name & package
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   app.name ?? app.packageName ?? '---',
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: surface.textPrimary,
                       fontSize: 13.5,
                       fontWeight: FontWeight.w600),
                   maxLines: 1,
@@ -752,26 +790,27 @@ class _AppTile extends StatelessWidget {
                 Text(
                   app.packageName ?? '',
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.3), fontSize: 11),
+                      color: surface.textSecond, fontSize: 11),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          // Version badge
           if (app.versionName != null)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: _purple.withOpacity(0.1),
+                color: AppColors.accentPurple.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'v${app.versionName}',
                 style: const TextStyle(
-                    color: _purple, fontSize: 10, fontWeight: FontWeight.w600),
+                    color: AppColors.accentPurple,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600),
               ),
             ),
         ],
