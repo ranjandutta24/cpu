@@ -9,6 +9,10 @@ import 'package:flutter/services.dart';
 import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────────────────────────
+
 class PhoneMonitorScreen extends StatefulWidget {
   const PhoneMonitorScreen({super.key});
 
@@ -16,9 +20,15 @@ class PhoneMonitorScreen extends StatefulWidget {
   State<PhoneMonitorScreen> createState() => _PhoneMonitorScreenState();
 }
 
-class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
+class _PhoneMonitorScreenState extends State<PhoneMonitorScreen>
+    with SingleTickerProviderStateMixin {
   // ── Native channel ────────────────────────────────────────────────────────
   static const _channel = MethodChannel('com.example.cpu/native_stats');
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  final _scaffoldKey          = GlobalKey<ScaffoldState>();
+  late final PageController   _pageCtrl;
+  int _selectedPage           = 0; // 0 = Live Processes, 1 = Installed Apps
 
   // ── State ─────────────────────────────────────────────────────────────────
   int _batteryLevel          = 0;
@@ -30,10 +40,17 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
   int _freeRamMb             = 0;
   String _deviceModel        = '---';
   String _androidVer         = '---';
+
+  // Installed apps
   List<AppInfo> _apps        = [];
   bool _loadingApps          = true;
-  bool _loadingStats         = true;
   String _appSearch          = '';
+
+  // Running processes (from native or ActivityManager usage stats)
+  List<Map<String, dynamic>> _runningProcs = [];
+  bool _loadingProcs                       = true;
+
+  bool _loadingStats = true;
 
   final Battery _battery = Battery();
   Timer? _refreshTimer;
@@ -43,6 +60,7 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
   @override
   void initState() {
     super.initState();
+    _pageCtrl = PageController(initialPage: 0);
     _init();
   }
 
@@ -51,13 +69,16 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
       _loadDeviceInfo(),
       _loadNativeStats(),
       _loadApps(),
+      _loadRunningProcesses(),
     ]);
     _batterySub = _battery.onBatteryStateChanged.listen((s) {
       if (mounted) setState(() => _batteryState = s);
     });
-    _refreshTimer =
-        Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted) _loadNativeStats();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) {
+        _loadNativeStats();
+        _loadRunningProcesses();
+      }
     });
   }
 
@@ -65,6 +86,7 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
   void dispose() {
     _refreshTimer?.cancel();
     _batterySub?.cancel();
+    _pageCtrl.dispose();
     super.dispose();
   }
 
@@ -120,6 +142,28 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     }
   }
 
+  Future<void> _loadRunningProcesses() async {
+    try {
+      // Try to get running apps from the native channel.
+      // The channel must handle 'getRunningApps' and return a List of maps
+      // with keys: name, packageName, [icon (Uint8List)].
+      // If not implemented yet, fall back gracefully.
+      final List raw =
+          await _channel.invokeMethod('getRunningApps') as List? ?? [];
+      final procs = raw
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _runningProcs = procs;
+        _loadingProcs = false;
+      });
+    } catch (_) {
+      // Channel not yet implemented — show empty state gracefully
+      if (mounted) setState(() => _loadingProcs = false);
+    }
+  }
+
   // ── Computed helpers ──────────────────────────────────────────────────────
   Color get _batteryColor {
     if (_batteryState == BatteryState.charging) return AppColors.accentTeal;
@@ -164,12 +208,25 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
         .toList();
   }
 
+  // ── Page switch helper ────────────────────────────────────────────────────
+  void _goToPage(int index) {
+    setState(() => _selectedPage = index);
+    _pageCtrl.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOutCubic,
+    );
+    Navigator.of(context).pop(); // close drawer
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final c = AppColors.of(context);
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: c.bg,
+      drawer: _buildDrawer(c),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -183,29 +240,13 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
             children: [
               _buildTopBar(c),
               Expanded(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildDeviceStrip(c),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(child: _buildBatteryCard(c)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _buildCurrentCard(c)),
-                          const SizedBox(width: 12),
-                          Expanded(child: _buildTempCard(c)),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      _buildRamCard(c),
-                      const SizedBox(height: 20),
-                      _buildAppsSection(c),
-                    ],
-                  ),
+                child: PageView(
+                  controller: _pageCtrl,
+                  onPageChanged: (i) => setState(() => _selectedPage = i),
+                  children: [
+                    _buildLiveProcessesPage(c),
+                    _buildInstalledAppsPage(c),
+                  ],
                 ),
               ),
             ],
@@ -215,14 +256,113 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
+  // ── Drawer ────────────────────────────────────────────────────────────────
+  Widget _buildDrawer(AppSurface c) {
+    return Drawer(
+      backgroundColor: c.surface,
+      child: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 52, 20, 22),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1A1040),
+                  Color(0xFF0D1117),
+                ],
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.accentPurple, AppColors.accentTeal],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.phone_android_rounded,
+                      color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'Phone Monitor',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _deviceModel,
+                  style: const TextStyle(
+                      color: Colors.white60, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Nav items
+          _DrawerNavItem(
+            icon: Icons.memory_rounded,
+            label: 'Live Processes',
+            selected: _selectedPage == 0,
+            accent: AppColors.accentPurple,
+            onTap: () => _goToPage(0),
+          ),
+          _DrawerNavItem(
+            icon: Icons.apps_rounded,
+            label: 'Installed Apps',
+            selected: _selectedPage == 1,
+            accent: AppColors.accentTeal,
+            onTap: () => _goToPage(1),
+          ),
+
+          const Spacer(),
+
+          // Footer
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _LiveDot(color: AppColors.accentPurple),
+                const SizedBox(width: 8),
+                Text(
+                  'Monitoring active',
+                  style: TextStyle(
+                      color: AppColors.darkTextSecond, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Top Bar ───────────────────────────────────────────────────────────────
   Widget _buildTopBar(AppSurface c) {
+    final pageLabels = ['Live Processes', 'Installed Apps'];
+    final pageIcons  = [Icons.memory_rounded, Icons.apps_rounded];
+    final pageColors = [AppColors.accentPurple, AppColors.accentTeal];
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
       child: Row(
         children: [
+          // Hamburger / drawer toggle
           GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: () => _scaffoldKey.currentState?.openDrawer(),
             child: Container(
               width: 40,
               height: 40,
@@ -232,13 +372,16 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
                 border: Border.all(
                     color: AppColors.accentPurple.withOpacity(0.25)),
               ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: AppColors.accentPurple, size: 18),
+              child: const Icon(Icons.menu_rounded,
+                  color: AppColors.accentPurple, size: 20),
             ),
           ),
           const SizedBox(width: 14),
+          Icon(pageIcons[_selectedPage],
+              color: pageColors[_selectedPage], size: 20),
+          const SizedBox(width: 8),
           Text(
-            'Phone Monitor',
+            pageLabels[_selectedPage],
             style: TextStyle(
               color: c.textPrimary,
               fontSize: 20,
@@ -246,7 +389,42 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
             ),
           ),
           const Spacer(),
-          _LiveDot(color: AppColors.accentPurple),
+          _LiveDot(color: pageColors[_selectedPage]),
+        ],
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE 1 — Live Processes
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildLiveProcessesPage(AppSurface c) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Device strip
+          _buildDeviceStrip(c),
+          const SizedBox(height: 16),
+
+          // Metric cards row
+          Row(
+            children: [
+              Expanded(child: _buildBatteryCard(c)),
+              const SizedBox(width: 10),
+              Expanded(child: _buildTempCard(c)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildCurrentCard(c),
+          const SizedBox(height: 10),
+          _buildRamCard(c),
+          const SizedBox(height: 24),
+
+          // Running processes section
+          _buildRunningProcessesSection(c),
         ],
       ),
     );
@@ -255,8 +433,7 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
   // ── Device strip ──────────────────────────────────────────────────────────
   Widget _buildDeviceStrip(AppSurface c) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(14),
@@ -330,18 +507,77 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
 
   // ── Current card ──────────────────────────────────────────────────────────
   Widget _buildCurrentCard(AppSurface c) {
-    final isCharging = _currentMa > 0;
-    return _MetricCard(
-      surface: c,
-      icon: isCharging
-          ? Icons.bolt_rounded
-          : Icons.battery_alert_rounded,
-      color: isCharging ? AppColors.accentTeal : AppColors.warning,
-      topLabel: 'Current',
-      value: _currentMa == 0
-          ? '-- mA'
-          : '${_currentMa.abs()} mA',
-      bottomLabel: isCharging ? 'Charging' : 'Draining',
+    final isCharging  = _currentMa > 0;
+    final absVal      = _currentMa.abs();
+    final color       = _currentMa == 0
+        ? c.textSecond
+        : isCharging
+            ? AppColors.accentTeal
+            : AppColors.warning;
+
+    final formatted = absVal == 0
+        ? '--'
+        : absVal >= 1000
+            ? '${(absVal ~/ 1000)},${(absVal % 1000).toString().padLeft(3, '0')}'
+            : '$absVal';
+
+    final watts = absVal > 0
+        ? (absVal * 3.7 / 1000).toStringAsFixed(1)
+        : '--';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.22)),
+        boxShadow: [
+          BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _currentMa == 0
+                ? Icons.power_off_outlined
+                : isCharging
+                    ? Icons.bolt_rounded
+                    : Icons.battery_alert_rounded,
+            color: color,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Current',
+                  style: TextStyle(
+                      color: c.textSecond,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4)),
+              const SizedBox(height: 3),
+              Text(
+                '$formatted mA',
+                style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            _currentMa == 0
+                ? 'Unavailable'
+                : '≈ $watts W  •  ${isCharging ? "IN ↑" : "OUT ↓"}',
+            style: TextStyle(color: c.textSecond, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 
@@ -393,7 +629,7 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
               const Icon(Icons.memory_rounded,
                   color: AppColors.accentPurple, size: 18),
               const SizedBox(width: 8),
-              Text('RAM',
+              Text('RAM Usage',
                   style: TextStyle(
                       color: c.textPrimary,
                       fontSize: 14,
@@ -449,97 +685,68 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
-  // ── Apps section ──────────────────────────────────────────────────────────
-  Widget _buildAppsSection(AppSurface c) {
-    final filtered = _filteredApps;
+  // ── Running processes section ─────────────────────────────────────────────
+  Widget _buildRunningProcessesSection(AppSurface c) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header
         Row(
           children: [
-            const Icon(Icons.apps_rounded,
-                color: AppColors.accentTeal, size: 18),
+            const Icon(Icons.run_circle_outlined,
+                color: AppColors.accentPurple, size: 20),
             const SizedBox(width: 8),
-            Text('Installed Apps',
+            Text('Running Processes',
                 style: TextStyle(
                     color: c.textPrimary,
                     fontSize: 15,
-                    fontWeight: FontWeight.w600)),
+                    fontWeight: FontWeight.w700)),
             const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.accentTeal.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+            if (!_loadingProcs)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.accentPurple.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('${_runningProcs.length} active',
+                    style: const TextStyle(
+                        color: AppColors.accentPurple,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
               ),
-              child: Text('${_apps.length} apps',
-                  style: const TextStyle(
-                      color: AppColors.accentTeal,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
-            ),
           ],
         ),
         const SizedBox(height: 12),
-        // Search bar
-        TextField(
-          onChanged: (v) => setState(() => _appSearch = v),
-          style: TextStyle(color: c.textPrimary, fontSize: 14),
-          cursorColor: AppColors.accentTeal,
-          decoration: InputDecoration(
-            hintText: 'Search apps...',
-            hintStyle:
-                TextStyle(color: c.textHint, fontSize: 14),
-            prefixIcon: const Icon(Icons.search_rounded,
-                color: AppColors.accentTeal, size: 20),
-            isDense: true,
-            filled: true,
-            fillColor: c.surface,
-            contentPadding: const EdgeInsets.symmetric(
-                vertical: 14, horizontal: 14),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: c.border),
-            ),
-            focusedBorder: const OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(12)),
-              borderSide: BorderSide(
-                  color: AppColors.accentTeal, width: 1.4),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _loadingApps
-            ? _buildAppsLoading(c)
-            : filtered.isEmpty
-                ? _buildAppsEmpty(c)
-                : _buildAppsList(filtered, c),
+
+        if (_loadingProcs)
+          _buildProcsLoading(c)
+        else if (_runningProcs.isEmpty)
+          _buildProcsEmpty(c)
+        else
+          _buildProcsList(c),
       ],
     );
   }
 
-  Widget _buildAppsLoading(AppSurface c) {
+  Widget _buildProcsLoading(AppSurface c) {
     return Container(
-      height: 200,
+      height: 160,
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: AppColors.accentTeal.withOpacity(0.1)),
+            color: AppColors.accentPurple.withOpacity(0.1)),
       ),
       child: const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(
-                color: AppColors.accentTeal, strokeWidth: 2),
+                color: AppColors.accentPurple, strokeWidth: 2),
             SizedBox(height: 14),
-            Text('Loading apps…',
+            Text('Loading processes…',
                 style:
                     TextStyle(color: Colors.white54, fontSize: 13)),
           ],
@@ -548,38 +755,247 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen> {
     );
   }
 
-  Widget _buildAppsEmpty(AppSurface c) {
+  Widget _buildProcsEmpty(AppSurface c) {
     return Container(
-      height: 120,
+      padding: const EdgeInsets.symmetric(vertical: 32),
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: AppColors.accentTeal.withOpacity(0.1)),
+            color: AppColors.accentPurple.withOpacity(0.1)),
       ),
       child: Center(
-        child: Text('No apps found',
-            style: TextStyle(color: c.textSecond, fontSize: 14)),
+        child: Column(
+          children: [
+            Icon(Icons.info_outline_rounded,
+                color: c.textSecond, size: 32),
+            const SizedBox(height: 10),
+            Text('No process data available',
+                style: TextStyle(color: c.textSecond, fontSize: 14)),
+            const SizedBox(height: 4),
+            Text('Requires PACKAGE_USAGE_STATS permission\nor native implementation',
+                style:
+                    TextStyle(color: c.textHint, fontSize: 11.5),
+                textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildAppsList(List<AppInfo> apps, AppSurface c) {
+  Widget _buildProcsList(AppSurface c) {
     return Container(
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-            color: AppColors.accentTeal.withOpacity(0.1)),
+            color: AppColors.accentPurple.withOpacity(0.12)),
       ),
       clipBehavior: Clip.antiAlias,
       child: ListView.separated(
         physics: const NeverScrollableScrollPhysics(),
         shrinkWrap: true,
-        itemCount: apps.length,
+        itemCount: _runningProcs.length,
         separatorBuilder: (_, __) =>
             Divider(height: 1, color: c.border.withOpacity(0.4), indent: 60),
-        itemBuilder: (_, i) => _AppTile(app: apps[i], surface: c),
+        itemBuilder: (_, i) =>
+            _ProcessTile(proc: _runningProcs[i], surface: c),
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE 2 — Installed Apps
+  // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildInstalledAppsPage(AppSurface c) {
+    final filtered = _filteredApps;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header row
+              Row(
+                children: [
+                  const Icon(Icons.apps_rounded,
+                      color: AppColors.accentTeal, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Installed Apps',
+                      style: TextStyle(
+                          color: c.textPrimary,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  if (!_loadingApps)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentTeal.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('${_apps.length} apps',
+                          style: const TextStyle(
+                              color: AppColors.accentTeal,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Search bar
+              TextField(
+                onChanged: (v) => setState(() => _appSearch = v),
+                style: TextStyle(color: c.textPrimary, fontSize: 14),
+                cursorColor: AppColors.accentTeal,
+                decoration: InputDecoration(
+                  hintText: 'Search apps…',
+                  hintStyle:
+                      TextStyle(color: c.textHint, fontSize: 14),
+                  prefixIcon: const Icon(Icons.search_rounded,
+                      color: AppColors.accentTeal, size: 20),
+                  isDense: true,
+                  filled: true,
+                  fillColor: c.surface,
+                  contentPadding: const EdgeInsets.symmetric(
+                      vertical: 14, horizontal: 14),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.border),
+                  ),
+                  focusedBorder: const OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.all(Radius.circular(12)),
+                    borderSide: BorderSide(
+                        color: AppColors.accentTeal, width: 1.4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loadingApps
+              ? _buildAppsLoading(c)
+              : filtered.isEmpty
+                  ? _buildAppsEmpty(c)
+                  : _buildAppsList(filtered, c),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAppsLoading(AppSurface c) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(
+              color: AppColors.accentTeal, strokeWidth: 2),
+          SizedBox(height: 14),
+          Text('Loading apps…',
+              style:
+                  TextStyle(color: Colors.white54, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppsEmpty(AppSurface c) {
+    return Center(
+      child: Text('No apps found',
+          style: TextStyle(color: c.textSecond, fontSize: 14)),
+    );
+  }
+
+  Widget _buildAppsList(List<AppInfo> apps, AppSurface c) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      itemCount: apps.length,
+      separatorBuilder: (_, __) =>
+          Divider(height: 1, color: c.border.withOpacity(0.4), indent: 56),
+      itemBuilder: (_, i) => _AppTile(app: apps[i], surface: c),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drawer nav item
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DrawerNavItem extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final bool     selected;
+  final Color    accent;
+  final VoidCallback onTap;
+
+  const _DrawerNavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Material(
+        color: selected
+            ? accent.withOpacity(0.12)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 14),
+            decoration: selected
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: accent.withOpacity(0.25)),
+                  )
+                : null,
+            child: Row(
+              children: [
+                Icon(icon,
+                    color: selected ? accent : Colors.white38,
+                    size: 22),
+                const SizedBox(width: 14),
+                Text(label,
+                    style: TextStyle(
+                      color:
+                          selected ? accent : Colors.white60,
+                      fontSize: 14,
+                      fontWeight: selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    )),
+                if (selected) ...[
+                  const Spacer(),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle, color: accent),
+                  ),
+                ]
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -753,7 +1169,7 @@ class _AppTile extends StatelessWidget {
     final Uint8List? iconBytes = app.icon;
     return Padding(
       padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
       child: Row(
         children: [
           Container(
@@ -802,17 +1218,85 @@ class _AppTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(
                   horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: AppColors.accentPurple.withOpacity(0.1),
+                color: AppColors.accentTeal.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'v${app.versionName}',
                 style: const TextStyle(
-                    color: AppColors.accentPurple,
+                    color: AppColors.accentTeal,
                     fontSize: 10,
                     fontWeight: FontWeight.w600),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Process tile ──────────────────────────────────────────────────────────────
+
+class _ProcessTile extends StatelessWidget {
+  final Map<String, dynamic> proc;
+  final AppSurface surface;
+  const _ProcessTile({required this.proc, required this.surface});
+
+  @override
+  Widget build(BuildContext context) {
+    final name    = proc['name'] as String? ?? proc['packageName'] as String? ?? '---';
+    final pkg     = proc['packageName'] as String? ?? '';
+    final iconBytes = proc['icon'] as Uint8List?;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        children: [
+          // Icon
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: AppColors.accentPurple.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: iconBytes != null && iconBytes.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(iconBytes, fit: BoxFit.cover),
+                  )
+                : const Icon(Icons.settings_applications_rounded,
+                    color: AppColors.accentPurple, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    style: TextStyle(
+                        color: surface.textPrimary,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Text(pkg,
+                    style: TextStyle(
+                        color: surface.textSecond, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          // Active dot
+          Container(
+            width: 8,
+            height: 8,
+            decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.accentTeal),
+          ),
         ],
       ),
     );
