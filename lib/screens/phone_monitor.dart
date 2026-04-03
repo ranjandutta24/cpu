@@ -49,6 +49,7 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen>
   // Running processes (from native or ActivityManager usage stats)
   List<Map<String, dynamic>> _runningProcs = [];
   bool _loadingProcs                       = true;
+  bool _hasUsagePermission                 = true; // Default to true until checked
 
   bool _loadingStats = true;
 
@@ -142,8 +143,30 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen>
     }
   }
 
+  Future<void> _checkUsagePermission() async {
+    try {
+      final bool granted =
+          await _channel.invokeMethod('hasUsagePermission') ?? false;
+      if (mounted) setState(() => _hasUsagePermission = granted);
+    } catch (_) {}
+  }
+
+  Future<void> _openUsageSettings() async {
+    try {
+      await _channel.invokeMethod('openUsageSettings');
+      // Re-check after a brief delay so user can return
+      Future.delayed(const Duration(seconds: 1), _checkUsagePermission);
+    } catch (_) {}
+  }
+
   Future<void> _loadRunningProcesses() async {
     try {
+      await _checkUsagePermission();
+      if (!_hasUsagePermission) {
+        if (mounted) setState(() => _loadingProcs = false);
+        return;
+      }
+
       // Try to get running apps from the native channel.
       // The channel must handle 'getRunningApps' and return a List of maps
       // with keys: name, packageName, [icon (Uint8List)].
@@ -757,7 +780,7 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen>
 
   Widget _buildProcsEmpty(AppSurface c) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 32),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: BorderRadius.circular(16),
@@ -767,16 +790,54 @@ class _PhoneMonitorScreenState extends State<PhoneMonitorScreen>
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.info_outline_rounded,
-                color: c.textSecond, size: 32),
-            const SizedBox(height: 10),
-            Text('No process data available',
-                style: TextStyle(color: c.textSecond, fontSize: 14)),
-            const SizedBox(height: 4),
-            Text('Requires PACKAGE_USAGE_STATS permission\nor native implementation',
-                style:
-                    TextStyle(color: c.textHint, fontSize: 11.5),
-                textAlign: TextAlign.center),
+            Icon(
+              !_hasUsagePermission
+                  ? Icons.lock_open_rounded
+                  : Icons.info_outline_rounded,
+              color: !_hasUsagePermission
+                  ? AppColors.warning
+                  : c.textSecond,
+              size: 32,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              !_hasUsagePermission
+                  ? 'Permission Required'
+                  : 'No process data available',
+              style: TextStyle(
+                  color: c.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              !_hasUsagePermission
+                  ? 'To see background apps like WhatsApp & YouTube, please grant Usage Access in Settings.'
+                  : 'No recently active apps found.',
+              style: TextStyle(color: c.textSecond, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+            if (!_hasUsagePermission) ...[
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: _openUsageSettings,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentPurple,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Grant Access',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
